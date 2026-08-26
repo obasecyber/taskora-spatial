@@ -1,0 +1,1 @@
+"""Country-specific ingestion adapters, kept separate from the domain model."""
