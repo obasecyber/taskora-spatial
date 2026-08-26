@@ -24,6 +24,11 @@ jobs:
           echo "POSTGRES_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "DATABASE_URL=postgresql+psycopg://taskora_ci:$password@localhost:5432/taskora_ci" >> "$GITHUB_ENV"
       - run: docker compose up -d --build db
+      - name: Show database startup diagnostics
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs db
       - name: Wait for PostgreSQL
         shell: bash
         run: |
