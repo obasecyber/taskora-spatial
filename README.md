@@ -19,6 +19,17 @@ uvicorn backend.app.main:app --reload
 
 The API health check is available at http://localhost:8000/api/v1/health. To run the API and database together, use `docker compose up --build`.
 
+To validate the migration lifecycle against a clean database:
+
+```powershell
+docker compose down -v
+docker compose up --build
+docker compose exec api alembic downgrade base
+docker compose exec api alembic upgrade head
+```
+
+Compose waits for PostgreSQL readiness before starting the API, and the API health check verifies database connectivity. CI uses separate non-production database credentials, waits explicitly with `pg_isready`, and repeats the clean migration cycle.
+
 The database image provides PostgreSQL 16, PostGIS, and pgvector. Database credentials are development-only defaults; set them through `.env` or the Compose environment and never commit `.env`.
 
 ## Architecture notes

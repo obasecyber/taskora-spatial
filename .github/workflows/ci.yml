@@ -8,7 +8,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql+psycopg://taskora:taskora@localhost:5432/taskora
+      POSTGRES_DB: taskora_ci
+      POSTGRES_USER: taskora_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -16,6 +17,25 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
-      - run: docker compose up -d db
+      - name: Generate CI database credentials
+        shell: bash
+        run: |
+          password="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+          echo "POSTGRES_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=postgresql+psycopg://taskora_ci:$password@localhost:5432/taskora_ci" >> "$GITHUB_ENV"
+      - run: docker compose up -d --build db
+      - name: Wait for PostgreSQL
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if docker compose exec -T db pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs db
+          exit 1
+      - run: alembic upgrade head
+      - run: alembic downgrade base
       - run: alembic upgrade head
       - run: pytest
+      - if: always()
+        run: docker compose down -v

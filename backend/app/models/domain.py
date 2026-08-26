@@ -35,7 +35,7 @@ class Organization(UUIDTimestampModel):
 
 class User(UUIDTimestampModel):
     __tablename__ = "users"
-    __table_args__ = (UniqueConstraint("email", name="uq_users_email"),)
+    __table_args__ = (UniqueConstraint("email", name="uq_users_email"), Index("ix_users_organization", "organization_id"))
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id"), nullable=False)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(200))
@@ -57,7 +57,7 @@ class DataSource(UUIDTimestampModel):
 
 class Dataset(UUIDTimestampModel):
     __tablename__ = "datasets"
-    __table_args__ = (UniqueConstraint("data_source_id", "external_id", name="uq_datasets_source_external"),)
+    __table_args__ = (UniqueConstraint("data_source_id", "external_id", name="uq_datasets_source_external"), Index("ix_datasets_data_source", "data_source_id"))
     data_source_id: Mapped[UUID] = mapped_column(ForeignKey(DATA_SOURCES_ID), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -67,7 +67,7 @@ class Dataset(UUIDTimestampModel):
 
 class IngestionRun(UUIDTimestampModel):
     __tablename__ = "ingestion_runs"
-    __table_args__ = (Index("ix_ingestion_runs_source_started", "data_source_id", "started_at"),)
+    __table_args__ = (Index("ix_ingestion_runs_source_started", "data_source_id", "started_at"), Index("ix_ingestion_runs_dataset", "dataset_id"))
     data_source_id: Mapped[UUID] = mapped_column(ForeignKey(DATA_SOURCES_ID), nullable=False)
     dataset_id: Mapped[UUID | None] = mapped_column(ForeignKey("datasets.id"))
     adapter_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -151,12 +151,18 @@ class Signal(SourcedModel):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
 
 
-class AuditEvent(UUIDTimestampModel):
+class AuditEvent(Base):
     __tablename__ = "audit_events"
-    __table_args__ = (Index("ix_audit_events_entity_created", "entity_type", "entity_id", "created_at"),)
+    __table_args__ = (Index("ix_audit_events_entity_created", "entity_type", "entity_id", "occurred_at"), Index("ix_audit_events_actor_occurred", "actor_type", "actor_id", "occurred_at"), Index("ix_audit_events_organization_occurred", "organization_id", "occurred_at"), Index("ix_audit_events_user_occurred", "user_id", "occurred_at"))
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     organization_id: Mapped[UUID | None] = mapped_column(ForeignKey("organizations.id"))
     user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(32), default="system", nullable=False)
+    actor_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
+    request_id: Mapped[str | None] = mapped_column(String(128))
     details: Mapped[dict[str, Any] | None] = mapped_column(JSON)

@@ -4,13 +4,13 @@ services:
       context: .
       dockerfile: db.Dockerfile
     environment:
-      POSTGRES_DB: taskora
-      POSTGRES_USER: taskora
-      POSTGRES_PASSWORD: taskora
+      POSTGRES_DB: ${POSTGRES_DB:-taskora}
+      POSTGRES_USER: ${POSTGRES_USER:-taskora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskora}
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U taskora -d taskora"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -19,7 +19,7 @@ services:
   api:
     build: .
     environment:
-      DATABASE_URL: postgresql+psycopg://taskora:taskora@db:5432/taskora
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://taskora:taskora@db:5432/taskora}
       ENVIRONMENT: development
     ports:
       - "8000:8000"
@@ -27,6 +27,11 @@ services:
       db:
         condition: service_healthy
     command: sh -c "alembic upgrade head && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres_data:
